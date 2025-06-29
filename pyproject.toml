@@ -1,20 +1,72 @@
 [project]
-name = "ai-markdown-writer"
+name = "draft"
 version = "0.1.0"
-description = "AI-powered markdown editor with natural language text transformation"
+description = "A GitHub-style markdown editor with AI assistance, drag-and-drop image uploads, and live preview"
 authors = [
-    {name = "AI Markdown Writer", email = "example@example.com"}
+    {name = "Draft Contributors", email = "noreply@example.com"}
 ]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+keywords = ["markdown", "editor", "ai", "writing", "blog"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Markup",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+
 dependencies = [
     "flask>=3.0.0",
     "flask-cors>=4.0.0", 
-    "llm>=0.13.1"
+    "llm>=0.13.1",
+    "typer>=0.9.0"
 ]
-requires-python = ">=3.8"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/example/draft"
+Repository = "https://github.com/example/draft"
+Issues = "https://github.com/example/draft/issues"
+Documentation = "https://github.com/example/draft#readme"
+
+[project.scripts]
+draft = "app:cli"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0"
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
