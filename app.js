@@ -16,6 +16,7 @@ const state = {
 
 // DOM elements
 const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
 const commandPalette = document.getElementById('commandPalette');
 const resultModal = document.getElementById('resultModal');
 const selectionPreview = document.querySelector('#selectionPreview > div');
@@ -24,6 +25,7 @@ const promptInput = document.getElementById('promptInput');
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
+    updatePreview(); // Initial preview update
 });
 
 function setupEventListeners() {
@@ -34,6 +36,9 @@ function setupEventListeners() {
             openCommandPalette();
         }
     });
+    
+    // Update preview on input
+    editor.addEventListener('input', updatePreview);
 
     // Prompt input handling
     promptInput.addEventListener('keydown', (e) => {
@@ -299,7 +304,26 @@ function acceptResult() {
     }
     
     editor.focus();
+    updatePreview(); // Update preview after accepting changes
     closeResultModal();
+}
+
+function updatePreview() {
+    const markdownText = editor.value;
+    
+    if (markdownText.trim() === '') {
+        preview.innerHTML = '<p class="text-gray-400 italic">Start typing to see your markdown preview...</p>';
+        return;
+    }
+    
+    try {
+        // Parse markdown and render HTML
+        const html = marked.parse(markdownText);
+        preview.innerHTML = html;
+    } catch (error) {
+        console.error('Error parsing markdown:', error);
+        preview.innerHTML = '<p class="text-red-500">Error rendering markdown preview</p>';
+    }
 }
 
 async function rerunCommand() {
