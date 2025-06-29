@@ -4,6 +4,7 @@
 #     "flask>=3.0.0",
 #     "flask-cors>=4.0.0",
 #     "llm>=0.13.1",
+#     "typer>=0.9.0",
 # ]
 # ///
 
@@ -12,13 +13,19 @@ from flask_cors import CORS
 import llm
 import logging
 import os
+import typer
+from pathlib import Path
 
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests from frontend
+cli = typer.Typer()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global system prompt
+SYSTEM_PROMPT = ""
 
 @app.route('/')
 def index():
@@ -82,10 +89,21 @@ def process_text():
 def build_prompt(text, user_prompt, context_before="", context_after=""):
     """Build the full prompt for the LLM"""
     
+    # Start with system prompt if available
+    if SYSTEM_PROMPT:
+        system_section = f"{SYSTEM_PROMPT}\n\n"
+    else:
+        system_section = ""
+    
     # Handle text generation vs text editing
     if not text.strip():
         # Generation mode - no text selected
-        base_instruction = f"""You are a helpful writing assistant. The user wants you to generate text based on this request: {user_prompt}
+        if SYSTEM_PROMPT:
+            # If we have a system prompt, just add the user request
+            base_instruction = f"The user wants you to generate text based on this request: {user_prompt}"
+        else:
+            # Default instruction if no system prompt
+            base_instruction = f"""You are a helpful writing assistant. The user wants you to generate text based on this request: {user_prompt}
 
 Please respond with ONLY the generated text, without any explanation or additional commentary."""
         
@@ -103,7 +121,12 @@ Please respond with ONLY the generated text, without any explanation or addition
             
     else:
         # Editing mode - text is selected
-        base_instruction = f"""You are a helpful writing assistant. The user has selected some text and wants you to: {user_prompt}
+        if SYSTEM_PROMPT:
+            # If we have a system prompt, just add the user request
+            base_instruction = f"The user has selected some text and wants you to: {user_prompt}"
+        else:
+            # Default instruction if no system prompt
+            base_instruction = f"""You are a helpful writing assistant. The user has selected some text and wants you to: {user_prompt}
 
 Please respond with ONLY the modified text, without any explanation or additional commentary."""
         
@@ -120,7 +143,7 @@ Please respond with ONLY the modified text, without any explanation or additiona
         
         context_section += "\n\nModified text:"
     
-    full_prompt = base_instruction + context_section
+    full_prompt = system_section + base_instruction + context_section
     
     return full_prompt
 
@@ -160,7 +183,39 @@ def list_models():
             'message': str(e)
         }), 500
 
-if __name__ == '__main__':
+def load_system_prompt(file_path: Path) -> str:
+    """Load system prompt from markdown file"""
+    try:
+        return file_path.read_text(encoding='utf-8').strip()
+    except Exception as e:
+        logger.error(f"Error loading system prompt from {file_path}: {e}")
+        return ""
+
+@cli.command()
+def serve(
+    system_prompt: str = typer.Option(
+        None, 
+        "--system-prompt", 
+        "-s",
+        help="Path to markdown file containing system prompt"
+    ),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
+    port: int = typer.Option(5000, "--port", help="Port to bind to"),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug mode")
+):
+    """Start the AI Writing Assistant Flask Server"""
+    global SYSTEM_PROMPT
+    
+    # Load system prompt if provided
+    if system_prompt:
+        prompt_path = Path(system_prompt)
+        if prompt_path.exists():
+            SYSTEM_PROMPT = load_system_prompt(prompt_path)
+            logger.info(f"Loaded system prompt from {prompt_path} ({len(SYSTEM_PROMPT)} characters)")
+        else:
+            typer.echo(f"Error: System prompt file not found: {prompt_path}", err=True)
+            raise typer.Exit(1)
+    
     print("Starting AI Writing Assistant Flask Server...")
     print("Available endpoints:")
     print("  POST /api/process - Process text with AI")
@@ -170,4 +225,10 @@ if __name__ == '__main__':
     print("  export OPENAI_API_KEY=your_key_here")
     print("  or configure other models with: llm install llm-claude-3")
     
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    if SYSTEM_PROMPT:
+        print(f"\nUsing system prompt: {SYSTEM_PROMPT[:100]}{'...' if len(SYSTEM_PROMPT) > 100 else ''}")
+    
+    app.run(debug=debug, host=host, port=port)
+
+if __name__ == '__main__':
+    cli()
