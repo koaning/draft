@@ -72,6 +72,25 @@
         .markdown-preview li {
             margin-bottom: 0.25em;
         }
+        
+        .markdown-preview figure {
+            margin: 1.5em 0;
+            text-align: center;
+        }
+        
+        .markdown-preview figure img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .markdown-preview figcaption {
+            margin-top: 0.5em;
+            font-size: 0.875em;
+            color: #6b7280;
+            font-style: italic;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -90,9 +109,11 @@
             <textarea 
                 id="editor"
                 class="flex-1 w-full p-8 text-gray-800 bg-white font-mono text-base 
-                       leading-relaxed resize-none focus:outline-none 
-                       selection:bg-yellow-100"
-                placeholder="Start writing your markdown here..."
+                       leading-relaxed resize-none focus:outline-none border-2 border-transparent
+                       selection:bg-yellow-100 transition-colors"
+                placeholder="Start writing your markdown here...
+
+Tip: Drag and drop images here to upload them!"
             ></textarea>
         </div>
         

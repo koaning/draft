@@ -11,12 +11,16 @@ const state = {
         command: null,
         attempts: 0,
         history: []
-    }
+    },
+    undoHistory: [],
+    undoDebounceTimer: null,
+    maxUndoStates: 20  // Limit to 20 undo states to prevent memory issues
 };
 
 // DOM elements
 const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
+const documentName = document.getElementById('documentName');
 const commandPalette = document.getElementById('commandPalette');
 const resultModal = document.getElementById('resultModal');
 const selectionPreview = document.querySelector('#selectionPreview > div');
@@ -29,16 +33,34 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
-    // Command palette trigger
+    // Command palette trigger and undo
     editor.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
             openCommandPalette();
+        } else if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            performUndo();
+        } else if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+            e.preventDefault();
+            saveDocument();
         }
     });
     
-    // Update preview on input
-    editor.addEventListener('input', updatePreview);
+    // Update preview on input and debounce undo state saving
+    editor.addEventListener('input', (e) => {
+        updatePreview();
+        // Debounce undo state saving to avoid excessive memory usage
+        if (e.inputType && e.inputType !== 'insertCompositionText') {
+            debouncedSaveUndoState();
+        }
+    });
+    
+    // Drag and drop for images
+    setupDragAndDrop();
+    
+    // Paste link functionality
+    editor.addEventListener('paste', handlePaste);
 
     // Prompt input handling
     promptInput.addEventListener('keydown', (e) => {
@@ -67,6 +89,9 @@ function setupEventListeners() {
     document.getElementById('acceptBtn').addEventListener('click', acceptResult);
     document.getElementById('rerunBtn').addEventListener('click', rerunCommand);
     document.getElementById('cancelBtn').addEventListener('click', closeResultModal);
+    
+    // Save/render button
+    document.getElementById('renderBtn').addEventListener('click', saveDocument);
 
     // Result modal keyboard shortcuts
     document.addEventListener('keydown', (e) => {
@@ -279,6 +304,9 @@ function closeResultModal() {
 }
 
 function acceptResult() {
+    // Save undo state before AI edit
+    saveUndoState();
+    
     const resultText = document.getElementById('resultText').textContent;
     
     if (state.selectedText) {
@@ -317,12 +345,313 @@ function updatePreview() {
     }
     
     try {
+        // Configure marked to allow HTML
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            sanitize: false,  // Allow raw HTML
+            silent: false
+        });
+        
         // Parse markdown and render HTML
-        const html = marked.parse(markdownText);
+        let html = marked.parse(markdownText);
+        
+        // Convert relative image paths to Flask-served paths for preview
+        const docName = documentName.value.trim();
+        if (docName) {
+            html = html.replace(
+                /src="([^"\/]+\.(png|jpg|jpeg|gif|webp))"/g, 
+                `src="/images/${encodeURIComponent(docName)}/$1"`
+            );
+        }
+        
         preview.innerHTML = html;
     } catch (error) {
         console.error('Error parsing markdown:', error);
         preview.innerHTML = '<p class="text-red-500">Error rendering markdown preview</p>';
+    }
+}
+
+function setupDragAndDrop() {
+    let dragCounter = 0;
+    
+    // Prevent default drag behaviors
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        editor.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    // Highlight drop area
+    ['dragenter', 'dragover'].forEach(eventName => {
+        editor.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        editor.addEventListener(eventName, unhighlight, false);
+    });
+    
+    // Handle dropped files
+    editor.addEventListener('drop', handleDrop, false);
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    function highlight() {
+        dragCounter++;
+        editor.classList.add('border-blue-400', 'bg-blue-50');
+    }
+    
+    function unhighlight() {
+        dragCounter--;
+        if (dragCounter === 0) {
+            editor.classList.remove('border-blue-400', 'bg-blue-50');
+        }
+    }
+    
+    async function handleDrop(e) {
+        dragCounter = 0;
+        // Force remove highlighting immediately
+        editor.classList.remove('border-blue-400', 'bg-blue-50');
+        
+        const files = Array.from(e.dataTransfer.files);
+        
+        for (const file of files) {
+            if (file.type.startsWith('image/')) {
+                await uploadImage(file);
+            }
+        }
+    }
+}
+
+async function uploadImage(file) {
+    const docName = documentName.value.trim();
+    if (!docName) {
+        alert('Please enter a document name before uploading images');
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('documentName', docName);
+        
+        const response = await fetch('/api/upload-image', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Upload failed');
+        }
+        
+        const result = await response.json();
+        console.log('Upload result:', result);
+        console.log('Markdown to insert:', result.markdown);
+        console.log('Type of markdown:', typeof result.markdown);
+        console.log('First 100 chars:', result.markdown.substring(0, 100));
+        
+        // Save undo state before modifying editor content
+        saveUndoState();
+        
+        // Insert figure markdown at cursor position
+        const cursorPos = editor.selectionStart;
+        const textBefore = editor.value.substring(0, cursorPos);
+        const textAfter = editor.value.substring(cursorPos);
+        
+        const newText = textBefore + result.markdown + '\n\n' + textAfter;
+        editor.value = newText;
+        
+        console.log('Editor content after insert:', editor.value);
+        
+        // Update preview immediately to see the figure
+        updatePreview();
+        
+        // Find and select the caption placeholder for easy editing
+        const captionPlaceholder = 'ADD_CAPTION_HERE';
+        const captionStart = newText.indexOf(captionPlaceholder, cursorPos);
+        
+        if (captionStart !== -1) {
+            // Focus editor and select the placeholder text so user can type caption immediately
+            editor.focus();
+            editor.setSelectionRange(captionStart, captionStart + captionPlaceholder.length);
+            console.log(`Selected "${captionPlaceholder}" at position ${captionStart}-${captionStart + captionPlaceholder.length}`);
+        } else {
+            // Fallback: position cursor after the figure
+            const newCursorPos = cursorPos + result.markdown.length + 2;
+            editor.focus();
+            editor.setSelectionRange(newCursorPos, newCursorPos);
+            console.log(`Caption placeholder not found, positioned cursor at ${newCursorPos}`);
+        }
+        
+        console.log('Image uploaded:', result.filename);
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        alert(`Failed to upload image: ${error.message}`);
+    }
+}
+
+function handlePaste(e) {
+    // Get clipboard data
+    const clipboardData = e.clipboardData || window.clipboardData;
+    const pastedText = clipboardData.getData('text');
+    
+    // Check if it looks like a URL
+    const urlRegex = /^https?:\/\/[^\s]+$/;
+    if (!urlRegex.test(pastedText.trim())) {
+        return; // Let default paste behavior happen
+    }
+    
+    // Check if text is selected
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    
+    if (start === end) {
+        return; // No selection, let default paste happen
+    }
+    
+    // Prevent default paste
+    e.preventDefault();
+    
+    // Save undo state before link creation
+    saveUndoState();
+    
+    // Get selected text
+    const selectedText = editor.value.substring(start, end);
+    
+    // Create markdown link
+    const markdownLink = `[${selectedText}](${pastedText.trim()})`;
+    
+    // Replace selection with markdown link
+    const textBefore = editor.value.substring(0, start);
+    const textAfter = editor.value.substring(end);
+    
+    editor.value = textBefore + markdownLink + textAfter;
+    
+    // Set cursor position after the link
+    const newCursorPos = start + markdownLink.length;
+    editor.setSelectionRange(newCursorPos, newCursorPos);
+    
+    // Update preview
+    updatePreview();
+    
+    console.log('Created markdown link:', markdownLink);
+}
+
+function saveUndoState() {
+    const currentState = {
+        content: editor.value,
+        selectionStart: editor.selectionStart,
+        selectionEnd: editor.selectionEnd,
+        timestamp: Date.now()
+    };
+    
+    // Don't save if content is identical to last state
+    const lastState = state.undoHistory[state.undoHistory.length - 1];
+    if (lastState && lastState.content === currentState.content) {
+        return;
+    }
+    
+    state.undoHistory.push(currentState);
+    
+    // Limit history size to prevent memory issues
+    if (state.undoHistory.length > state.maxUndoStates) {
+        state.undoHistory.shift(); // Remove oldest state
+    }
+    
+    console.log(`Undo state saved. History size: ${state.undoHistory.length}`);
+}
+
+function debouncedSaveUndoState() {
+    // Clear existing timer
+    if (state.undoDebounceTimer) {
+        clearTimeout(state.undoDebounceTimer);
+    }
+    
+    // Save state after 1 second of no typing
+    state.undoDebounceTimer = setTimeout(() => {
+        saveUndoState();
+    }, 1000);
+}
+
+function performUndo() {
+    if (state.undoHistory.length === 0) {
+        console.log('No undo history available');
+        return;
+    }
+    
+    // Get the last state
+    const lastState = state.undoHistory.pop();
+    
+    // Restore content and cursor position
+    editor.value = lastState.content;
+    editor.setSelectionRange(lastState.selectionStart, lastState.selectionEnd);
+    editor.focus();
+    
+    // Update preview
+    updatePreview();
+    
+    console.log(`Undid to previous state. History size: ${state.undoHistory.length}`);
+}
+
+async function saveDocument() {
+    const docName = documentName.value.trim();
+    const content = editor.value;
+    
+    if (!docName) {
+        alert('Please enter a document name before saving');
+        return;
+    }
+    
+    if (!content.trim()) {
+        alert('Document is empty - nothing to save');
+        return;
+    }
+    
+    try {
+        // Update button to show saving state
+        const renderBtn = document.getElementById('renderBtn');
+        const originalText = renderBtn.textContent;
+        renderBtn.textContent = 'Saving...';
+        renderBtn.disabled = true;
+        
+        const response = await fetch('/api/save-document', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                documentName: docName,
+                content: content
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Save failed');
+        }
+        
+        const result = await response.json();
+        console.log('Document saved:', result.path);
+        
+        // Show success feedback
+        renderBtn.textContent = 'Saved!';
+        setTimeout(() => {
+            renderBtn.textContent = originalText;
+            renderBtn.disabled = false;
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Save error:', error);
+        alert(`Failed to save document: ${error.message}`);
+        
+        // Reset button
+        const renderBtn = document.getElementById('renderBtn');
+        renderBtn.textContent = 'Render';
+        renderBtn.disabled = false;
     }
 }
 
