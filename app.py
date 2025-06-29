@@ -40,9 +40,6 @@ def process_text():
         text = data.get('text', '').strip()
         prompt = data.get('prompt', '').strip()
         
-        if not text:
-            return jsonify({'error': 'Text is required'}), 400
-        
         if not prompt:
             return jsonify({'error': 'Prompt is required'}), 400
         
@@ -85,23 +82,45 @@ def process_text():
 def build_prompt(text, user_prompt, context_before="", context_after=""):
     """Build the full prompt for the LLM"""
     
-    # Base instruction
-    base_instruction = f"""You are a helpful writing assistant. The user has selected some text and wants you to: {user_prompt}
+    # Handle text generation vs text editing
+    if not text.strip():
+        # Generation mode - no text selected
+        base_instruction = f"""You are a helpful writing assistant. The user wants you to generate text based on this request: {user_prompt}
+
+Please respond with ONLY the generated text, without any explanation or additional commentary."""
+        
+        # Add context if available for generation
+        if context_before or context_after:
+            context_section = "\n\nHere's the context where the text should be inserted:"
+            if context_before:
+                context_section += f"\n\nBEFORE: ...{context_before}"
+            context_section += f"\n\n[INSERT NEW TEXT HERE]"
+            if context_after:
+                context_section += f"\n\nAFTER: {context_after}..."
+            context_section += "\n\nGenerated text:"
+        else:
+            context_section = "\n\nGenerated text:"
+            
+    else:
+        # Editing mode - text is selected
+        base_instruction = f"""You are a helpful writing assistant. The user has selected some text and wants you to: {user_prompt}
 
 Please respond with ONLY the modified text, without any explanation or additional commentary."""
+        
+        # Add context if available
+        if context_before or context_after:
+            context_section = "\n\nHere's the context around the selected text:"
+            if context_before:
+                context_section += f"\n\nBEFORE: ...{context_before}"
+            context_section += f"\n\nSELECTED TEXT: {text}"
+            if context_after:
+                context_section += f"\n\nAFTER: {context_after}..."
+        else:
+            context_section = f"\n\nSelected text to modify:\n{text}"
+        
+        context_section += "\n\nModified text:"
     
-    # Add context if available
-    if context_before or context_after:
-        context_section = "\n\nHere's the context around the selected text:"
-        if context_before:
-            context_section += f"\n\nBEFORE: ...{context_before}"
-        context_section += f"\n\nSELECTED TEXT: {text}"
-        if context_after:
-            context_section += f"\n\nAFTER: {context_after}..."
-    else:
-        context_section = f"\n\nSelected text to modify:\n{text}"
-    
-    full_prompt = base_instruction + context_section + "\n\nModified text:"
+    full_prompt = base_instruction + context_section
     
     return full_prompt
 

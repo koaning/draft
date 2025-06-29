@@ -92,17 +92,24 @@ function openCommandPalette() {
     const end = editor.selectionEnd;
     const text = editor.value.substring(start, end).trim();
     
+    state.selectionStart = start;
+    state.selectionEnd = end;
+    
     if (text) {
+        // Editing mode - text is selected
         state.selectedText = text;
-        state.selectionStart = start;
-        state.selectionEnd = end;
         
         // Show preview
         selectionPreview.textContent = text;
         document.getElementById('selectionPreview').classList.remove('hidden');
+        promptInput.placeholder = "What would you like to do with this text?";
     } else {
-        // Hide preview if no selection
+        // Generation mode - no text selected  
+        state.selectedText = '';
+        
+        // Hide preview
         document.getElementById('selectionPreview').classList.add('hidden');
+        promptInput.placeholder = "What would you like to write?";
     }
     
     // Show palette
@@ -141,6 +148,18 @@ function maintainSelection() {
     editor.setSelectionRange(state.selectionStart, state.selectionEnd);
 }
 
+function getContextBefore() {
+    // Get ~100 characters before the selection/cursor
+    const start = Math.max(0, state.selectionStart - 100);
+    return editor.value.substring(start, state.selectionStart);
+}
+
+function getContextAfter() {
+    // Get ~100 characters after the selection/cursor
+    const end = Math.min(editor.value.length, state.selectionEnd + 100);
+    return editor.value.substring(state.selectionEnd, end);
+}
+
 async function executeCommand(command) {
     state.resultModal.command = command;
     state.resultModal.attempts = 1;
@@ -160,6 +179,10 @@ async function executeCommand(command) {
 
 async function processTextWithAPI(text, command) {
     try {
+        // Get context around cursor position for generation mode
+        const contextBefore = getContextBefore();
+        const contextAfter = getContextAfter();
+        
         const response = await fetch('/api/process', {
             method: 'POST',
             headers: {
@@ -170,9 +193,8 @@ async function processTextWithAPI(text, command) {
                 prompt: command.customPrompt,
                 attempt: state.resultModal.attempts || 1,
                 context: {
-                    // Could add surrounding context here later
-                    before: '',
-                    after: ''
+                    before: contextBefore,
+                    after: contextAfter
                 }
             })
         });
@@ -196,9 +218,15 @@ function showLoadingModal(prompt) {
     document.getElementById('commandName').textContent = prompt;
     document.getElementById('attemptNumber').textContent = state.resultModal.attempts;
     
-    // Show the original text, put loading in result section
-    document.getElementById('originalText').textContent = state.selectedText;
-    document.querySelector('#resultModal .mb-4').style.display = 'block'; // show original text section
+    if (state.selectedText) {
+        // Editing mode - show original text
+        document.getElementById('originalText').textContent = state.selectedText;
+        document.querySelector('#resultModal .mb-4').style.display = 'block';
+    } else {
+        // Generation mode - hide original text section  
+        document.querySelector('#resultModal .mb-4').style.display = 'none';
+    }
+    
     document.querySelector('#resultModal .mb-6').style.display = 'block'; // show result text section
     
     // Put loading message in the result text area
@@ -221,8 +249,16 @@ function showResultModal(result) {
     // Everything should already be visible, just update the result
     document.getElementById('commandName').textContent = state.resultModal.command.customPrompt;
     document.getElementById('attemptNumber').textContent = state.resultModal.attempts;
-    document.getElementById('originalText').textContent = state.selectedText;
     document.getElementById('resultText').textContent = result;
+    
+    if (state.selectedText) {
+        // Editing mode - show original text
+        document.getElementById('originalText').textContent = state.selectedText;
+        document.querySelector('#resultModal .mb-4').style.display = 'block';
+    } else {
+        // Generation mode - hide original text section (should already be hidden from loading)
+        document.querySelector('#resultModal .mb-4').style.display = 'none';
+    }
     
     // Re-enable action buttons
     document.getElementById('acceptBtn').disabled = false;
@@ -240,8 +276,8 @@ function closeResultModal() {
 function acceptResult() {
     const resultText = document.getElementById('resultText').textContent;
     
-    // Replace text in editor using stored selection positions
     if (state.selectedText) {
+        // Editing mode - replace selected text
         const before = editor.value.substring(0, state.selectionStart);
         const after = editor.value.substring(state.selectionEnd);
         
@@ -250,9 +286,19 @@ function acceptResult() {
         // Set cursor position at end of new text
         const newEnd = state.selectionStart + resultText.length;
         editor.setSelectionRange(newEnd, newEnd);
-        editor.focus();
+    } else {
+        // Generation mode - insert text at cursor position
+        const before = editor.value.substring(0, state.selectionStart);
+        const after = editor.value.substring(state.selectionStart);
+        
+        editor.value = before + resultText + after;
+        
+        // Set cursor position at end of new text
+        const newEnd = state.selectionStart + resultText.length;
+        editor.setSelectionRange(newEnd, newEnd);
     }
     
+    editor.focus();
     closeResultModal();
 }
 
