@@ -614,9 +614,10 @@ async function saveDocument() {
     try {
         // Update button to show saving state
         const renderBtn = document.getElementById('renderBtn');
-        const originalText = renderBtn.textContent;
-        renderBtn.textContent = 'Saving...';
+        renderBtn.textContent = '💾 Saving...';
         renderBtn.disabled = true;
+        renderBtn.style.backgroundColor = '#f59e0b';
+        renderBtn.style.color = 'white';
         
         const response = await fetch('/api/save-document', {
             method: 'POST',
@@ -637,21 +638,28 @@ async function saveDocument() {
         const result = await response.json();
         console.log('Document saved:', result.path);
         
-        // Show success feedback
-        renderBtn.textContent = 'Saved!';
+        // Show success feedback with green color
+        renderBtn.textContent = '✓ Saved!';
+        renderBtn.style.backgroundColor = '#16a34a';
+        renderBtn.style.color = 'white';
+        
         setTimeout(() => {
-            renderBtn.textContent = originalText;
+            renderBtn.textContent = 'Render';
             renderBtn.disabled = false;
+            renderBtn.style.backgroundColor = '';
+            renderBtn.style.color = '';
         }, 2000);
         
     } catch (error) {
         console.error('Save error:', error);
         alert(`Failed to save document: ${error.message}`);
         
-        // Reset button
+        // Reset button on error
         const renderBtn = document.getElementById('renderBtn');
         renderBtn.textContent = 'Render';
         renderBtn.disabled = false;
+        renderBtn.style.backgroundColor = '';
+        renderBtn.style.color = '';
     }
 }
 

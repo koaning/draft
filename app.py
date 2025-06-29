@@ -379,9 +379,9 @@ def save_document():
         doc_folder = get_document_folder(document_name)
         doc_folder.mkdir(parents=True, exist_ok=True)
         
-        # Create markdown file with frontmatter
+        # Create markdown file with frontmatter - always save as index.md
         markdown_content = create_frontmatter_content(document_name, content)
-        file_path = doc_folder / f"{doc_folder.name}.md"
+        file_path = doc_folder / "index.md"
         
         file_path.write_text(markdown_content, encoding='utf-8')
         
