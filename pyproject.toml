@@ -1,0 +1,20 @@
+[project]
+name = "ai-markdown-writer"
+version = "0.1.0"
+description = "AI-powered markdown editor with natural language text transformation"
+authors = [
+    {name = "AI Markdown Writer", email = "example@example.com"}
+]
+dependencies = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0", 
+    "llm>=0.13.1"
+]
+requires-python = ">=3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = []
