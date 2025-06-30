@@ -232,6 +232,7 @@ def sanitize_document_name(name: str) -> str:
     sanitized = re.sub(r'[<>:"/\\|?*]', '-', name.strip())
     sanitized = re.sub(r'\s+', '-', sanitized)  # Replace spaces with hyphens
     sanitized = sanitized.strip('-')  # Remove leading/trailing hyphens
+    sanitized = sanitized.lower()  # Convert to lowercase for nice URLs
     
     return sanitized if sanitized else None
 
@@ -249,10 +250,10 @@ def get_document_folder(document_name: str) -> Path:
 
 def create_frontmatter_content(title: str, content: str) -> str:
     """Create markdown content with frontmatter"""
-    now = datetime.now().isoformat()
+    today = datetime.now().date().isoformat()
     frontmatter = f"""---
 title: "{title}"
-date: "{now}"
+date: "{today}"
 ---
 
 {content}"""
