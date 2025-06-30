@@ -47,7 +47,7 @@ Issues = "https://github.com/example/draft/issues"
 Documentation = "https://github.com/example/draft#readme"
 
 [project.scripts]
-draft = "app:cli"
+draft = "draft.app:cli"
 
 [build-system]
 requires = ["hatchling"]
@@ -64,6 +64,13 @@ dev-dependencies = [
 [tool.black]
 line-length = 88
 target-version = ["py38"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["draft"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"draft/index.html" = "draft/index.html"
+"draft/app.js" = "draft/app.js"
 
 [tool.mypy]
 python_version = "3.8"

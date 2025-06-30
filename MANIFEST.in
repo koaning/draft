@@ -1,0 +1,4 @@
+include draft/*.html
+include draft/*.js
+include README.md
+include LICENSE

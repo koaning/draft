@@ -32,12 +32,14 @@ logger = logging.getLogger(__name__)
 @app.route('/')
 def index():
     """Serve the main application"""
-    return send_from_directory('.', 'index.html')
+    package_dir = Path(__file__).parent
+    return send_from_directory(str(package_dir), 'index.html')
 
 @app.route('/app.js')
 def app_js():
     """Serve the JavaScript file"""
-    return send_from_directory('.', 'app.js')
+    package_dir = Path(__file__).parent
+    return send_from_directory(str(package_dir), 'app.js')
 
 @app.route('/images/<document_name>/<filename>')
 def serve_image(document_name, filename):
