@@ -253,7 +253,7 @@ def create_frontmatter_content(title: str, content: str) -> str:
     today = datetime.now().date().isoformat()
     frontmatter = f"""---
 title: "{title}"
-date: "{today}"
+date: {today}
 ---
 
 {content}"""
