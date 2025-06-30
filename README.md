@@ -5,10 +5,10 @@ An experimental, GitHub-style markdown editor with AI assistance, drag-and-drop 
 
 ## 🚀 Quick Start
 
-### Installation
+### "Installation"
 
 ```bash
-uv pip install draft
+uvx --with git+https://github.com/koaning/draft draft --help
 ```
 
 ### Setup API Keys
