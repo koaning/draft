@@ -99,7 +99,8 @@ def process_text():
         full_prompt = build_prompt(text, prompt, context_before, context_after)
         
         # Use LLM to process the text
-        model = llm.get_model("gpt-3.5-turbo")  # You can change this to your preferred model
+        model_name = app.config.get('MODEL_NAME', 'gpt-3.5-turbo')
+        model = llm.get_model(model_name)
         response = model.prompt(full_prompt)
         
         result = response.text().strip()
@@ -111,7 +112,7 @@ def process_text():
             'prompt': prompt,
             'attempt': attempt,
             'metadata': {
-                'model': 'gpt-3.5-turbo',
+                'model': model_name,
                 'tokens': len(full_prompt.split()) + len(result.split()),
                 'success': True
             }
@@ -191,10 +192,11 @@ def health_check():
     """Health check endpoint"""
     try:
         # Test that llm is working
-        model = llm.get_model("gpt-3.5-turbo")
+        model_name = app.config.get('MODEL_NAME', 'gpt-3.5-turbo')
+        model = llm.get_model(model_name)
         return jsonify({
             'status': 'healthy',
-            'model': 'gpt-3.5-turbo',
+            'model': model_name,
             'available': True
         })
     except Exception as e:
@@ -422,6 +424,12 @@ def serve(
         "-s",
         help="Path to markdown file containing system prompt"
     ),
+    model: str = typer.Option(
+        "gpt-3.5-turbo",
+        "--model",
+        "-m",
+        help="LLM model to use (e.g., gpt-3.5-turbo, gpt-4, claude-3-opus)"
+    ),
     host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
     port: int = typer.Option(5000, "--port", help="Port to bind to"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug mode")
@@ -442,6 +450,10 @@ def serve(
     
     app.config['WRITE_FOLDER'] = write_path.resolve()
     logger.info(f"Using write folder: {app.config['WRITE_FOLDER']}")
+    
+    # Store model name
+    app.config['MODEL_NAME'] = model
+    logger.info(f"Using model: {app.config['MODEL_NAME']}")
     
     # Load system prompt if provided
     if system_prompt:
@@ -464,6 +476,7 @@ def serve(
     print("  POST /api/save-document - Save document with frontmatter")
     print("  GET  /api/validate-name - Validate document name")
     print(f"\nWrite folder: {app.config['WRITE_FOLDER']}")
+    print(f"Model: {app.config['MODEL_NAME']}")
     print("\nMake sure to set up your API keys:")
     print("  export OPENAI_API_KEY=your_key_here")
     print("  or configure other models with: llm install llm-claude-3")
