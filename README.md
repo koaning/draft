@@ -11,6 +11,13 @@ An experimental, GitHub-style markdown editor with AI assistance, drag-and-drop 
 uvx --with git+https://github.com/koaning/draft draft --help
 ```
 
+> Note : `uvx` create a custom adhc virtual environment where draft is executed. To have draft working with other providers you will need to use the `--with` flag.
+> For example to use `draft` with `Ollama` the command would be :
+>
+> ```bash
+> uvx --with git+https://github.com/koaning/draft draft --with llm-ollama --help
+> ```
+
 ### Setup API Keys
 
 ```bash
