@@ -366,6 +366,17 @@ function updatePreview() {
         }
         
         preview.innerHTML = html;
+        if (window.renderMathInElement) {
+            renderMathInElement(preview, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ],
+                throwOnError: false
+            });
+        }
     } catch (error) {
         console.error('Error parsing markdown:', error);
         preview.innerHTML = '<p class="text-red-500">Error rendering markdown preview</p>';
@@ -676,5 +687,4 @@ async function rerunCommand() {
     // Keep selection visible with result
     maintainSelection();
 }
-
 
