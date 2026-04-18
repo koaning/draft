@@ -410,6 +410,26 @@ def load_system_prompt(file_path: Path) -> str:
         logger.error(f"Error loading system prompt from {file_path}: {e}")
         return ""
 
+def is_openai_model(model_name: str) -> bool:
+    """Best-effort check for OpenAI model identifiers."""
+    if not model_name:
+        return False
+    return model_name.startswith(("gpt-", "o1", "o3", "o4")) or "openai" in model_name.lower()
+
+def warn_if_missing_openai_key(model_name: str) -> None:
+    """Warn at startup when an OpenAI model is configured without an API key."""
+    if not is_openai_model(model_name):
+        return
+    if os.getenv("OPENAI_API_KEY"):
+        return
+
+    warning = (
+        "Warning: OPENAI_API_KEY is not set. The server will still start, "
+        "but OpenAI-backed requests will fail until the key is configured."
+    )
+    logger.warning(warning)
+    print(f"\n{warning}")
+
 @cli.command()
 def serve(
     write_folder: str = typer.Option(
@@ -454,6 +474,7 @@ def serve(
     # Store model name
     app.config['MODEL_NAME'] = model
     logger.info(f"Using model: {app.config['MODEL_NAME']}")
+    warn_if_missing_openai_key(app.config['MODEL_NAME'])
     
     # Load system prompt if provided
     if system_prompt:
